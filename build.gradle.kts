@@ -75,6 +75,10 @@ dependencies {
     compile("org.slf4j:slf4j-api:1.7.21")
     compile("com.google.code.gson:gson:2.7")
     compile("com.bendb.dropwizard:dropwizard-redis:$dropwizardVersion-0")
+    compile("com.fasterxml.jackson.module:jackson-module-kotlin:2.8.7")
+    compile("com.ibm.icu:icu4j:59.1")
+    compile("org.bouncycastle:bcprov-jdk15on:1.56")
+
 
     testCompile("junit:junit:4.12")
     testCompile("org.mockito:mockito-core:2.2.9")
