@@ -19,8 +19,9 @@ import io.dropwizard.auth.basic.BasicCredentialAuthFilter
 import java.security.Principal
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature
 
-private val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
-private val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
+val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
+val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
+val permittedGraphemeClusters = extractGraphemeClusters(permittedCharacters).toSet()
 
 data class UserPrincipal(val user: String) : Principal {
     override fun getName(): String {
@@ -60,7 +61,6 @@ class KitApplication : Application<KitConfiguration>() {
     @Throws(Exception::class)
     override fun run(configuration: KitConfiguration, environment: Environment) {
         val generatedGraphemeClusters = extractGraphemeClusters(generatedCharacters)
-        val permittedGraphemeClusters = extractGraphemeClusters(permittedCharacters)
 
         LOGGER.info("Producing IDs of length ${configuration.length}, containing: $generatedGraphemeClusters")
         LOGGER.info(" and permitting: $permittedGraphemeClusters")
@@ -78,9 +78,6 @@ class KitApplication : Application<KitConfiguration>() {
 
         }
 
-        val linkShortenResource = LinkShortenService(LinkDataSource(jedisPool), LinkDataSink(jedisPool, sha3HashingStrategy), GraphemeClusterIdGenerator(configuration.length.toInt(), generatedCharacters), permittedGraphemeClusters.toSet())
-
-        environment.jersey().register(linkShortenResource)
         environment.applicationContext.errorHandler = JsonErrorHandler()
 
         environment.jersey().register(AuthDynamicFeature(BasicCredentialAuthFilter.Builder<UserPrincipal>()
@@ -88,7 +85,18 @@ class KitApplication : Application<KitConfiguration>() {
                 .setAuthorizer { principal, role -> principal?.user == configuration.user }
                 .setRealm("kit")
                 .buildAuthFilter()))
+
         environment.jersey().register(RolesAllowedDynamicFeature::class.java)
         environment.jersey().register(AuthValueFactoryProvider.Binder(UserPrincipal::class.java))
+
+        val dataSource = LinkDataSource(jedisPool)
+        val dataSink = LinkDataSink(jedisPool, sha3HashingStrategy)
+        val generator = GraphemeClusterIdGenerator(configuration.length.toInt(), generatedCharacters)
+
+        val linkShortenGetResource = LinkShortenService.GetResource(dataSource)
+        val linkShortenPostResource = LinkShortenService.PostResource(dataSource, dataSink, generator)
+
+        environment.jersey().register(linkShortenGetResource)
+        environment.jersey().register(linkShortenPostResource)
     }
 }

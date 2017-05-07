@@ -100,7 +100,6 @@ project.setProperty("archivesBaseName", "Kit")
 
 shadowJar {
     mergeServiceFiles()
-    relocate("kotlin", "codes.carrot.kit.kotlin")
     exclude("META-INF/*.DSA")
     exclude("META-INF/*.RSA")
 }
@@ -129,6 +128,10 @@ configure<PublishingExtension> {
             artifactId = projectTitle
         }
     }
+}
+
+jar {
+    manifest.attributes += "Main-Class" to "codes.carrot.kit.Kit"
 }
 
 fun Project.jar(setup: Jar.() -> Unit) = (project.tasks.getByName("jar") as Jar).setup()

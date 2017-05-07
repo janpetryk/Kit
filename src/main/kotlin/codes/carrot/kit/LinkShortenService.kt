@@ -6,6 +6,7 @@ import io.dropwizard.auth.Auth
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.exceptions.JedisConnectionException
 import java.security.SecureRandom
+import java.util.*
 import javax.annotation.security.PermitAll
 import javax.annotation.security.RolesAllowed
 import javax.ws.rs.*
@@ -111,64 +112,14 @@ class GraphemeClusterIdGenerator(private val length: Int, inputString: String): 
 
 }
 
-@Path("/")
-@Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
-class LinkShortenService(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator, private val permittedCharactersSet: Set<String>) {
+object LinkShortenService {
 
     private val LOGGER = loggerFor<LinkShortenService>()
     private val LINK_MAX = 2083
 
-    @Path("{id}") @GET @Timed @PermitAll fun get(@PathParam("id") id: String): Response {
-        if (!isValidId(id)) {
-            return constructBadRequestResponse("id must only contain permitted characters and [1..10] long")
-        }
-
-        val link = linkDataSource.get(id) ?: return idNotFoundResponse(id)
-
-        return constructLinkResponse(link)
-    }
-
-    @Path("/link") @POST @Timed @RolesAllowed("ADMIN") fun post(request: PostRequest, @Auth user: UserPrincipal?): Response {
-        if (user == null) {
-            return constructAccessDeniedResponse("forbidden")
-        }
-
-        val link = request.link
-
-        if (!isValidLink(link)) {
-            LOGGER.info("invalid link")
-            return constructBadRequestResponse("link must be [1..$LINK_MAX] long, and start with http:// or https://")
-        }
-
-        val id = if (request.id != null) {
-            if (!isValidId(request.id)) {
-                return@post constructBadRequestResponse("id must be alpha numeric and [1..10] long")
-            }
-
-            request.id
-        } else {
-            idGenerator.next()
-        }
-
-        val existingLink = linkDataSource.get(id)
-        if (existingLink != null) {
-            LOGGER.info("link with id already exists, bailing out")
-            return constructBadRequestResponse("something already exists at that id")
-        }
-
-        val storedId = linkDataSink.store(id, link)
-        if (storedId == null) {
-            LOGGER.info("failed to store id and link using sink")
-            return constructServerFailureResponse("failed to store id and link")
-        }
-        LOGGER.info("storing id and link: $storedId -> $link")
-
-        return constructLinkStoredResponse(storedId, link)
-    }
-
     private fun isValidId(id: String): Boolean {
         val graphemeClusters = extractGraphemeClusters(id)
-        val onlyContainsPermittedCharacters = graphemeClusters.all { permittedCharactersSet.contains(it) }
+        val onlyContainsPermittedCharacters = graphemeClusters.all { permittedGraphemeClusters.contains(it) }
         if (!onlyContainsPermittedCharacters) {
             return false
         }
@@ -231,4 +182,61 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
                 ErrorResponseV1(Response.Status.NOT_FOUND.statusCode.toString(), id)).build()
     }
 
+    @Path("/")
+    @PermitAll
+    @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
+    class GetResource(private val linkDataSource: ILinkDataSource) {
+        @Path("{id}") @GET @Timed fun get(@PathParam("id") id: String, @Auth user: Optional<UserPrincipal>): Response {
+            if (!isValidId(id)) {
+                return constructBadRequestResponse("id must only contain permitted characters and [1..10] long")
+            }
+
+            val link = linkDataSource.get(id) ?: return idNotFoundResponse(id)
+
+            return constructLinkResponse(link)
+        }
+    }
+
+    @Path("/")
+    @RolesAllowed("ADMIN")
+    @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
+    class PostResource(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator) {
+        @Path("link") @POST @Timed fun post(request: PostRequest, @Auth user: UserPrincipal?): Response {
+            if (user == null) {
+                return constructAccessDeniedResponse("forbidden")
+            }
+
+            val link = request.link
+
+            if (!isValidLink(link)) {
+                LOGGER.info("invalid link")
+                return constructBadRequestResponse("link must be [1..$LINK_MAX] long, and start with http:// or https://")
+            }
+
+            val id = if (request.id != null) {
+                if (!isValidId(request.id)) {
+                    return@post constructBadRequestResponse("id must be alpha numeric and [1..10] long")
+                }
+
+                request.id
+            } else {
+                idGenerator.next()
+            }
+
+            val existingLink = linkDataSource.get(id)
+            if (existingLink != null) {
+                LOGGER.info("link with id already exists, bailing out")
+                return constructBadRequestResponse("something already exists at that id")
+            }
+
+            val storedId = linkDataSink.store(id, link)
+            if (storedId == null) {
+                LOGGER.info("failed to store id and link using sink")
+                return constructServerFailureResponse("failed to store id and link")
+            }
+            LOGGER.info("storing id and link: $storedId -> $link")
+
+            return constructLinkStoredResponse(storedId, link)
+        }
+    }
 }
