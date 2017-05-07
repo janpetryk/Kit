@@ -12,36 +12,11 @@ import io.dropwizard.setup.Environment
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.MessageDigest
 import java.security.Security
-import java.util.*
 import kotlin.text.Charsets.UTF_8
-import io.dropwizard.auth.AuthValueFactoryProvider
-import io.dropwizard.auth.basic.BasicCredentialAuthFilter
-import java.security.Principal
-import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature
 
 val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
 val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
 val permittedGraphemeClusters = extractGraphemeClusters(permittedCharacters).toSet()
-
-data class UserPrincipal(val user: String) : Principal {
-    override fun getName(): String {
-        return user
-    }
-}
-
-class TokenAuthenticator(val user: String, val tokens: Set<String>) : Authenticator<BasicCredentials, UserPrincipal> {
-    override fun authenticate(credentials: BasicCredentials?): Optional<UserPrincipal> {
-        if (credentials == null || credentials.username.isNullOrBlank() || credentials.password.isNullOrBlank()) {
-            return Optional.empty()
-        }
-
-        if (credentials.username == user && tokens.contains(credentials.password)) {
-            return Optional.of(UserPrincipal(user = user))
-        }
-
-        return Optional.empty()
-    }
-}
 
 class KitApplication : Application<KitConfiguration>() {
     private val LOGGER = loggerFor<KitApplication>()
@@ -80,21 +55,12 @@ class KitApplication : Application<KitConfiguration>() {
 
         environment.applicationContext.errorHandler = JsonErrorHandler()
 
-        environment.jersey().register(AuthDynamicFeature(BasicCredentialAuthFilter.Builder<UserPrincipal>()
-                .setAuthenticator(TokenAuthenticator(configuration.user, configuration.apiKeys.toSet()))
-                .setAuthorizer { principal, role -> principal?.user == configuration.user }
-                .setRealm("kit")
-                .buildAuthFilter()))
-
-        environment.jersey().register(RolesAllowedDynamicFeature::class.java)
-        environment.jersey().register(AuthValueFactoryProvider.Binder(UserPrincipal::class.java))
-
         val dataSource = LinkDataSource(jedisPool)
         val dataSink = LinkDataSink(jedisPool, sha3HashingStrategy)
         val generator = GraphemeClusterIdGenerator(configuration.length.toInt(), generatedCharacters)
 
         val linkShortenGetResource = LinkShortenService.GetResource(dataSource)
-        val linkShortenPostResource = LinkShortenService.PostResource(dataSource, dataSink, generator)
+        val linkShortenPostResource = LinkShortenService.PostResource(dataSource, dataSink, generator, configuration.apiKeys.toSet(), configuration.urlStart)
 
         environment.jersey().register(linkShortenGetResource)
         environment.jersey().register(linkShortenPostResource)

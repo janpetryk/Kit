@@ -1,7 +1,7 @@
 # Kit configuration
 
 apiKeys: [one, two]
-user: carrot
+urlStart: https://some.link/
 length: 4
 
 server:

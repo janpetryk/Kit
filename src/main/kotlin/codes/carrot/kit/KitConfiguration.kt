@@ -13,7 +13,7 @@ class KitConfiguration : Configuration() {
     lateinit var apiKeys: List<String>
 
     @NotEmpty
-    lateinit var user: String
+    lateinit var urlStart: String
 
     @Min(1)
     @Max(255)

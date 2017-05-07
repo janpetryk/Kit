@@ -152,7 +152,6 @@ object LinkShortenService {
     }
 
     data class GetResponse(val link: String)
-    data class PostRequest(val link: String, val id: String?)
     data class PostResponse(val id: String, val link: String)
 
     private fun constructLinkResponse(link: String): Response {
@@ -161,6 +160,10 @@ object LinkShortenService {
 
     private fun constructLinkStoredResponse(id: String, link: String): Response {
         return Response.status(Response.Status.OK).entity(PostResponse(id, link)).build()
+    }
+
+    private fun constructLinkStoredResponse(newLink: String): Response {
+        return Response.status(Response.Status.OK).entity(newLink).build()
     }
 
     private fun constructServerFailureResponse(message: String): Response {
@@ -187,7 +190,7 @@ object LinkShortenService {
     @PermitAll
     @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
     class GetResource(private val linkDataSource: ILinkDataSource) {
-        @Path("{id}") @GET @Timed fun get(@PathParam("id") id: String, @Auth user: Optional<UserPrincipal>): Response {
+        @Path("{id}") @GET @Timed fun get(@PathParam("id") id: String): Response {
             if (!isValidId(id)) {
                 return constructBadRequestResponse("id must only contain permitted characters and [1..10] long")
             }
@@ -199,27 +202,24 @@ object LinkShortenService {
     }
 
     @Path("/")
-    @RolesAllowed("ADMIN")
     @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
-    class PostResource(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator) {
-        @Path("link") @POST @Timed fun post(request: PostRequest, @Auth user: UserPrincipal?): Response {
-            if (user == null) {
+    class PostResource(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator, private val accessTokens: Set<String>, private val urlStart: String) {
+        @Path("link") @POST @Timed fun post(@QueryParam("link") link: String?, @QueryParam("id") linkId: String?, @QueryParam("format") format: String?, @QueryParam("key") key: String?): Response {
+            if (key == null || !accessTokens.contains(key)) {
                 return constructAccessDeniedResponse("forbidden")
             }
 
-            val link = request.link
-
-            if (!isValidLink(link)) {
+            if (link == null || !isValidLink(link)) {
                 LOGGER.info("invalid link")
                 return constructBadRequestResponse("link must be [1..$LINK_MAX] long, and start with http:// or https://")
             }
 
-            val id = if (request.id != null) {
-                if (!isValidId(request.id)) {
+            val id = if (linkId != null) {
+                if (!isValidId(linkId)) {
                     return@post constructBadRequestResponse("id must be alpha numeric and [1..10] long")
                 }
 
-                request.id
+                linkId
             } else {
                 idGenerator.next()
             }
@@ -237,7 +237,12 @@ object LinkShortenService {
             }
             LOGGER.info("storing id and link: $storedId -> $link")
 
-            return constructLinkStoredResponse(storedId, link)
+            if (format == null || format != "text") {
+                return constructLinkStoredResponse(storedId, link)
+            } else {
+                return constructLinkStoredResponse("$urlStart$storedId")
+            }
         }
+
     }
 }
