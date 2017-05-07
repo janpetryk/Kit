@@ -4,15 +4,43 @@ import com.bendb.dropwizard.redis.JedisBundle
 import com.bendb.dropwizard.redis.JedisFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import io.dropwizard.Application
+import io.dropwizard.auth.AuthDynamicFeature
+import io.dropwizard.auth.Authenticator
+import io.dropwizard.auth.basic.BasicCredentials
 import io.dropwizard.setup.Bootstrap
 import io.dropwizard.setup.Environment
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.MessageDigest
 import java.security.Security
+import java.util.*
 import kotlin.text.Charsets.UTF_8
+import io.dropwizard.auth.AuthValueFactoryProvider
+import io.dropwizard.auth.basic.BasicCredentialAuthFilter
+import java.security.Principal
+import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature
 
 private val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
 private val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
+
+data class UserPrincipal(val user: String) : Principal {
+    override fun getName(): String {
+        return user
+    }
+}
+
+class TokenAuthenticator(val user: String, val tokens: Set<String>) : Authenticator<BasicCredentials, UserPrincipal> {
+    override fun authenticate(credentials: BasicCredentials?): Optional<UserPrincipal> {
+        if (credentials == null || credentials.username.isNullOrBlank() || credentials.password.isNullOrBlank()) {
+            return Optional.empty()
+        }
+
+        if (credentials.username == user && tokens.contains(credentials.password)) {
+            return Optional.of(UserPrincipal(user = user))
+        }
+
+        return Optional.empty()
+    }
+}
 
 class KitApplication : Application<KitConfiguration>() {
     private val LOGGER = loggerFor<KitApplication>()
@@ -54,5 +82,13 @@ class KitApplication : Application<KitConfiguration>() {
 
         environment.jersey().register(linkShortenResource)
         environment.applicationContext.errorHandler = JsonErrorHandler()
+
+        environment.jersey().register(AuthDynamicFeature(BasicCredentialAuthFilter.Builder<UserPrincipal>()
+                .setAuthenticator(TokenAuthenticator(configuration.user, configuration.apiKeys.toSet()))
+                .setAuthorizer { principal, role -> principal?.user == configuration.user }
+                .setRealm("kit")
+                .buildAuthFilter()))
+        environment.jersey().register(RolesAllowedDynamicFeature::class.java)
+        environment.jersey().register(AuthValueFactoryProvider.Binder(UserPrincipal::class.java))
     }
 }

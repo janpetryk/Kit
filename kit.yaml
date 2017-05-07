@@ -1,0 +1,27 @@
+# Kit configuration
+
+apiKeys: [one, two]
+user: carrot
+length: 4
+
+server:
+  applicationConnectors:
+    - type: http
+      port: 8100
+
+  adminConnectors:
+    - type: http
+      port: 8101
+
+
+logging:
+  level: INFO
+
+  loggers:
+    codes.carrot.kit: DEBUG
+
+  appenders:
+    - type: console
+
+jedis:
+  endpoint: localhost:6379

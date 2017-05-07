@@ -74,6 +74,8 @@ dependencies {
 
     compile("org.slf4j:slf4j-api:1.7.21")
     compile("com.google.code.gson:gson:2.7")
+    compile("io.dropwizard:dropwizard-core:$dropwizardVersion")
+    compile("io.dropwizard:dropwizard-auth:$dropwizardVersion")
     compile("com.bendb.dropwizard:dropwizard-redis:$dropwizardVersion-0")
     compile("com.fasterxml.jackson.module:jackson-module-kotlin:2.8.7")
     compile("com.ibm.icu:icu4j:59.1")

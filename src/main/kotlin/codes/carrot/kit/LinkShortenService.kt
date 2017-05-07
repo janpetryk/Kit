@@ -2,9 +2,12 @@ package codes.carrot.kit
 
 import com.codahale.metrics.annotation.Timed
 import com.ibm.icu.text.BreakIterator
+import io.dropwizard.auth.Auth
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.exceptions.JedisConnectionException
 import java.security.SecureRandom
+import javax.annotation.security.PermitAll
+import javax.annotation.security.RolesAllowed
 import javax.ws.rs.*
 import javax.ws.rs.core.MediaType
 import javax.ws.rs.core.Response
@@ -115,7 +118,7 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
     private val LOGGER = loggerFor<LinkShortenService>()
     private val LINK_MAX = 2083
 
-    @Path("{id}") @GET @Timed fun get(@PathParam("id") id: String): Response {
+    @Path("{id}") @GET @Timed @PermitAll fun get(@PathParam("id") id: String): Response {
         if (!isValidId(id)) {
             return constructBadRequestResponse("id must only contain permitted characters and [1..10] long")
         }
@@ -125,7 +128,11 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
         return constructLinkResponse(link)
     }
 
-    @Path("/link") @POST @Timed fun put(request: PostRequest): Response {
+    @Path("/link") @POST @Timed @RolesAllowed("ADMIN") fun post(request: PostRequest, @Auth user: UserPrincipal?): Response {
+        if (user == null) {
+            return constructAccessDeniedResponse("forbidden")
+        }
+
         val link = request.link
 
         if (!isValidLink(link)) {
@@ -135,7 +142,7 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
 
         val id = if (request.id != null) {
             if (!isValidId(request.id)) {
-                return@put constructBadRequestResponse("id must be alpha numeric and [1..10] long")
+                return@post constructBadRequestResponse("id must be alpha numeric and [1..10] long")
             }
 
             request.id
@@ -146,15 +153,15 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
         val existingLink = linkDataSource.get(id)
         if (existingLink != null) {
             LOGGER.info("link with id already exists, bailing out")
-            return constructServerFailureResponse("something already exists at that id")
+            return constructBadRequestResponse("something already exists at that id")
         }
 
-        LOGGER.info("storing id and link: $id -> $link")
         val storedId = linkDataSink.store(id, link)
         if (storedId == null) {
             LOGGER.info("failed to store id and link using sink")
             return constructServerFailureResponse("failed to store id and link")
         }
+        LOGGER.info("storing id and link: $storedId -> $link")
 
         return constructLinkStoredResponse(storedId, link)
     }
@@ -207,6 +214,11 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
     private fun constructServerFailureResponse(message: String): Response {
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(
                 ErrorResponseV1(Response.Status.INTERNAL_SERVER_ERROR.statusCode.toString(), message)).build()
+    }
+
+    private fun constructAccessDeniedResponse(message: String): Response {
+        return Response.status(Response.Status.FORBIDDEN).entity(
+                ErrorResponseV1(Response.Status.FORBIDDEN.statusCode.toString(), message)).build()
     }
 
     private fun constructBadRequestResponse(message: String): Response {
