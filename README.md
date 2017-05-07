@@ -9,3 +9,8 @@ You can support the development of this shortener through [Patreon](https://patr
 
 ## Code License
 The source code of this project is licensed under the terms of the ISC license, listed in the [LICENSE](LICENSE.md) file. A concise summary of the ISC license is available at [choosealicense.org](http://choosealicense.com/licenses/isc/).
+
+## Example Usage
+
+* Building: `./gradlew clean build shadowJar`
+* Using (with [httpie](https://httpie.org/)): `http GET https://some.link/link?key=api_key_from_config&id=kit&link=https://github.com/carrotcodes/kit`
