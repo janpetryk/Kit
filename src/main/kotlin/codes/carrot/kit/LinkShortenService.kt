@@ -5,6 +5,7 @@ import com.ibm.icu.text.BreakIterator
 import io.dropwizard.auth.Auth
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.exceptions.JedisConnectionException
+import java.net.URI
 import java.security.SecureRandom
 import java.util.*
 import javax.annotation.security.PermitAll
@@ -155,7 +156,7 @@ object LinkShortenService {
     data class PostResponse(val id: String, val link: String)
 
     private fun constructLinkResponse(link: String): Response {
-        return Response.status(Response.Status.TEMPORARY_REDIRECT).entity(GetResponse(link)).build()
+        return Response.temporaryRedirect(URI.create(link)).entity(GetResponse(link)).build()
     }
 
     private fun constructLinkStoredResponse(id: String, link: String): Response {
