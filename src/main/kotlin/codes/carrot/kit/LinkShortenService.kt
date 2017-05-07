@@ -110,14 +110,14 @@ class GraphemeClusterIdGenerator(private val length: Int, inputString: String): 
 
 @Path("/")
 @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
-class LinkShortenService(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator) {
+class LinkShortenService(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator, private val permittedCharactersSet: Set<String>) {
 
     private val LOGGER = loggerFor<LinkShortenService>()
     private val LINK_MAX = 2083
 
     @Path("{id}") @GET @Timed fun get(@PathParam("id") id: String): Response {
         if (!isValidId(id)) {
-            return constructBadRequestResponse("id must be [1..10] long")
+            return constructBadRequestResponse("id must only contain permitted characters and [1..10] long")
         }
 
         val link = linkDataSource.get(id) ?: return idNotFoundResponse(id)
@@ -134,8 +134,8 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
         }
 
         val id = if (request.id != null) {
-            if (request.id.isBlank()) {
-                return@put constructBadRequestResponse("id for storage must be [1..10] long")
+            if (!isValidId(request.id)) {
+                return@put constructBadRequestResponse("id must be alpha numeric and [1..10] long")
             }
 
             request.id
@@ -161,6 +161,10 @@ class LinkShortenService(private val linkDataSource: ILinkDataSource, private va
 
     private fun isValidId(id: String): Boolean {
         val graphemeClusters = extractGraphemeClusters(id)
+        val onlyContainsPermittedCharacters = graphemeClusters.all { permittedCharactersSet.contains(it) }
+        if (!onlyContainsPermittedCharacters) {
+            return false
+        }
 
         if (id.isNullOrEmpty() || graphemeClusters.size > 10) {
             return false

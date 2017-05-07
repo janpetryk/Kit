@@ -11,8 +11,8 @@ import java.security.MessageDigest
 import java.security.Security
 import kotlin.text.Charsets.UTF_8
 
-private val permittedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
-// private val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+private val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
+private val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
 
 class KitApplication : Application<KitConfiguration>() {
     private val LOGGER = loggerFor<KitApplication>()
@@ -31,9 +31,11 @@ class KitApplication : Application<KitConfiguration>() {
 
     @Throws(Exception::class)
     override fun run(configuration: KitConfiguration, environment: Environment) {
-        val graphemeClusters = extractGraphemeClusters(permittedCharacters)
+        val generatedGraphemeClusters = extractGraphemeClusters(generatedCharacters)
+        val permittedGraphemeClusters = extractGraphemeClusters(permittedCharacters)
 
-        LOGGER.info("Producing IDs of length ${configuration.length}, containing: $graphemeClusters")
+        LOGGER.info("Producing IDs of length ${configuration.length}, containing: $generatedGraphemeClusters")
+        LOGGER.info(" and permitting: $permittedGraphemeClusters")
 
         val jedisPool = configuration.jedis.build(environment)
 
@@ -45,10 +47,10 @@ class KitApplication : Application<KitConfiguration>() {
             override fun hash(link: String): String {
                 return String(sha3.digest(link.toByteArray(charset = UTF_8)))
             }
-            
+
         }
 
-        val linkShortenResource = LinkShortenService(LinkDataSource(jedisPool), LinkDataSink(jedisPool, sha3HashingStrategy), GraphemeClusterIdGenerator(configuration.length.toInt(), permittedCharacters))
+        val linkShortenResource = LinkShortenService(LinkDataSource(jedisPool), LinkDataSink(jedisPool, sha3HashingStrategy), GraphemeClusterIdGenerator(configuration.length.toInt(), generatedCharacters), permittedGraphemeClusters.toSet())
 
         environment.jersey().register(linkShortenResource)
         environment.applicationContext.errorHandler = JsonErrorHandler()
