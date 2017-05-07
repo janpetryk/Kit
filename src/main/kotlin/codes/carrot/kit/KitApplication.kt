@@ -14,7 +14,7 @@ import java.security.MessageDigest
 import java.security.Security
 import kotlin.text.Charsets.UTF_8
 
-val generatedCharacters = "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋"
+val generatedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 val permittedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🦉🐺🐗🐴🦄🐝🦋🥕💻✨⚡️⭐️🔥"
 val permittedGraphemeClusters = extractGraphemeClusters(permittedCharacters).toSet()
 

@@ -205,6 +205,14 @@ object LinkShortenService {
     @Produces(MediaType.APPLICATION_JSON + ";charset=utf-8")
     class PostResource(private val linkDataSource: ILinkDataSource, private val linkDataSink: ILinkDataSink, private val idGenerator: IIdGenerator, private val accessTokens: Set<String>, private val urlStart: String) {
         @Path("link") @POST @Timed fun post(@QueryParam("link") link: String?, @QueryParam("id") linkId: String?, @QueryParam("format") format: String?, @QueryParam("key") key: String?): Response {
+            return handleRequest(key, link, linkId, format)
+        }
+
+        @Path("link") @GET @Timed fun get(@QueryParam("link") link: String?, @QueryParam("id") linkId: String?, @QueryParam("format") format: String?, @QueryParam("key") key: String?): Response {
+            return handleRequest(key, link, linkId, format)
+        }
+
+        private fun handleRequest(key: String?, link: String?, linkId: String?, format: String?): Response {
             if (key == null || !accessTokens.contains(key)) {
                 return constructAccessDeniedResponse("forbidden")
             }
@@ -216,7 +224,7 @@ object LinkShortenService {
 
             val id = if (linkId != null) {
                 if (!isValidId(linkId)) {
-                    return@post constructBadRequestResponse("id must be alpha numeric and [1..10] long")
+                    return constructBadRequestResponse("id must be alpha numeric and [1..10] long")
                 }
 
                 linkId
